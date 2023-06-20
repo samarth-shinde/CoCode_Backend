@@ -18,6 +18,5 @@ urlpatterns = [
     ),
     path("help_portal/", views.help_portal, name="help_portal"),
     path("verify_otp/", views.verify_otp, name="verify_otp"),
-    # path("get_tokens/", views.get_tokens, name="get_tokens"),
-    path("create-batch-events/", views.create_batch_events, name="create_batch_events"),
+    path("send_email", views.send_email, name="send_email"),
 ]

@@ -35,3 +35,23 @@ def send_otp_email(email, otp):
             "Failed to send email. SMTP authentication error.",
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+def send_reminder_email(contest, sender_email, recipient_email):
+    subject = f'<span style="font-family: Arial, sans-serif; font-weight: bold;">CoCode Reminder: {contest["name"]}</span>'
+    message = f"""
+        <p><strong>Reminder:</strong></p>
+        <p>The contest <strong>{contest["name"]}</strong> will start in 30 minutes.</p>
+        <p><strong>Time:</strong> {contest['start_time']} - {contest['end_time']}</p>
+        <p><strong>Link:</strong> <a href='{contest['url']}'>{contest['url']}</a></p>
+    """
+
+    try:
+        send_mail(subject, message, sender_email, [recipient_email])
+
+    except SMTPAuthenticationError:
+        # Handle the authentication error here
+        print("SMTP authentication error occurred.")
+    except Exception as e:
+        # Print the exception and continue with other contests
+        print("An error occurred while sending the reminder email.", e)

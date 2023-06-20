@@ -1,10 +1,7 @@
-import traceback
-import json
+import json, os, traceback, requests
 from opentok import Client
-from opentok import Roles
 from urllib import request
 from django.shortcuts import render, get_object_or_404
-from requests import session
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -14,10 +11,12 @@ from .models import Playground, OpenTokSession
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from .serializers import UserSerializer, PlaygroundSerializer
-from .utils import send_wa_msg, generate_otp, send_otp_email
-from google.oauth2 import credentials
-from googleapiclient.discovery import build
+from .utils import send_wa_msg, generate_otp, send_otp_email, send_reminder_email
 from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR
+from django.core.mail import send_mail
+from smtplib import SMTPAuthenticationError
+from datetime import timedelta
+from django.views.decorators.csrf import csrf_exempt
 
 
 @api_view(["POST"])
@@ -68,6 +67,7 @@ def get_user_details(request):
     token_key = data["token"]
     token = get_object_or_404(Token, key=token_key)
     user_obj = token.user
+    print(user_obj)
     serializer = UserSerializer(user_obj)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -157,7 +157,7 @@ from .scraper import scrape
 def help_portal(request):
     try:
         data = request.data
-        print("Request data:", data)
+        print("Request data:", request.user)
         query = data["query"]
         print("Search query:", query)
         data_list = [
@@ -213,34 +213,65 @@ def verify_otp(request):
         )
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@csrf_exempt
 @api_view(["POST"])
-def create_batch_events(request):
+def send_email(request):
+    data = request.data
+    contests = data.get("contests", [])
+    send_reminders = data.get("selectedReminders", [])
+    print(contests)
+    logger.info(f"Received contests: {contests}")
+
+    # Replace the placeholders with your own email details
+    sender_email = "samarthshinde247@gmail.com"
+    recipient_email = "samarthshinde247@gmail.com"
+
     try:
-        credential_data = json.loads(request.data.get("credential"))
-        dropped_contests_data = json.loads(request.data.get("droppedContests"))
-        print(credential_data, dropped_contests_data)
+        for contest in contests:
+            subject = f'<span style="font-family: Arial, sans-serif; font-weight: bold;">CoCode Invitation for {contest["name"]}</span>'
+            message = f"""
+                <p><strong>CoCode Invitation Details:</strong></p>
+                <p><strong>Time:</strong> {contest['start_time']} - {contest['end_time']}</p>
+                <p><strong>Link:</strong> <a href='{contest['url']}'>{contest['url']}</a></p>
+            """
 
-        # Load the credential data into a Credentials object
-        creds = credentials.Credentials.from_authorized_user_info(credential_data)
-        print("--------------------------------")
-        print(creds)
-        # Build the Google Calendar API service
-        service = build("calendar", "v3", credentials=creds)
+            try:
+                send_mail(subject, message, sender_email, [recipient_email])
 
-        # Iterate over the droppedContests data and create events
-        for dropped_contest in dropped_contests_data:
-            event = {
-                "summary": dropped_contest["summary"],
-                "start": {
-                    "dateTime": dropped_contest["startDateTime"],
-                },
-                "end": {
-                    "dateTime": dropped_contest["endDateTime"],
-                },
-            }
-            service.events().insert(calendarId="primary", body=event).execute()
+                # Send reminders if selected option is not "none"
+                for reminder_option in send_reminders:
+                    if reminder_option == "30min":
+                        send_reminder_email.apply_async(
+                            args=[contest, sender_email, recipient_email],
+                            eta=contest["start_time"] - timedelta(minutes=30),
+                        )
+                    elif reminder_option == "1day":
+                        send_reminder_email.apply_async(
+                            args=[contest, sender_email, recipient_email],
+                            eta=contest["start_time"] - timedelta(days=1),
+                        )
+                    elif reminder_option == "1week":
+                        send_reminder_email.apply_async(
+                            args=[contest, sender_email, recipient_email],
+                            eta=contest["start_time"] - timedelta(weeks=1),
+                        )
 
-        return Response({"message": "Batch events created successfully"})
+            except SMTPAuthenticationError:
+                return Response(
+                    "Failed to send email. SMTP authentication error.",
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        return Response({"message": "Emails sent successfully"})
+
     except Exception as e:
-        traceback.print_exc()
-        return Response({"error": str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.exception("An error occurred while processing the request.")
+        return Response(
+            {"message": "An error occurred while processing the request."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
