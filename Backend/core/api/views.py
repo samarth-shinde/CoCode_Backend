@@ -15,7 +15,7 @@ from .utils import send_wa_msg, generate_otp, send_otp_email, send_reminder_emai
 from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR
 from django.core.mail import send_mail
 from smtplib import SMTPAuthenticationError
-from datetime import timedelta
+from datetime import timedelta, datetime
 from django.views.decorators.csrf import csrf_exempt
 
 
@@ -246,19 +246,34 @@ def send_email(request):
                 # Send reminders if selected option is not "none"
                 for reminder_option in send_reminders:
                     if reminder_option == "30min":
-                        send_reminder_email.apply_async(
-                            args=[contest, sender_email, recipient_email],
-                            eta=contest["start_time"] - timedelta(minutes=30),
+                        send_reminder_email(
+                            contest,
+                            sender_email,
+                            recipient_email,
+                            eta=datetime.strptime(
+                                contest["start_time"], "%Y-%m-%dT%H:%M:%S.%fZ"
+                            )
+                            - timedelta(minutes=30),
                         )
                     elif reminder_option == "1day":
-                        send_reminder_email.apply_async(
-                            args=[contest, sender_email, recipient_email],
-                            eta=contest["start_time"] - timedelta(days=1),
+                        send_reminder_email(
+                            contest,
+                            sender_email,
+                            recipient_email,
+                            eta=datetime.strptime(
+                                contest["start_time"], "%Y-%m-%dT%H:%M:%S.%fZ"
+                            )
+                            - timedelta(days=1),
                         )
                     elif reminder_option == "1week":
-                        send_reminder_email.apply_async(
-                            args=[contest, sender_email, recipient_email],
-                            eta=contest["start_time"] - timedelta(weeks=1),
+                        send_reminder_email(
+                            contest,
+                            sender_email,
+                            recipient_email,
+                            eta=datetime.strptime(
+                                contest["start_time"], "%Y-%m-%dT%H:%M:%S.%fZ"
+                            )
+                            - timedelta(weeks=1),
                         )
 
             except SMTPAuthenticationError:
@@ -268,7 +283,6 @@ def send_email(request):
                 )
 
         return Response({"message": "Emails sent successfully"})
-
     except Exception as e:
         logger.exception("An error occurred while processing the request.")
         return Response(

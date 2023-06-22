@@ -37,7 +37,7 @@ def send_otp_email(email, otp):
         )
 
 
-def send_reminder_email(contest, sender_email, recipient_email):
+def send_reminder_email(contest, sender_email, recipient_email, eta=None):
     subject = f'<span style="font-family: Arial, sans-serif; font-weight: bold;">CoCode Reminder: {contest["name"]}</span>'
     message = f"""
         <p><strong>Reminder:</strong></p>
@@ -47,7 +47,10 @@ def send_reminder_email(contest, sender_email, recipient_email):
     """
 
     try:
-        send_mail(subject, message, sender_email, [recipient_email])
+        if eta is not None:
+            send_mail(subject, message, sender_email, [recipient_email], eta=eta)
+        else:
+            send_mail(subject, message, sender_email, [recipient_email])
 
     except SMTPAuthenticationError:
         # Handle the authentication error here
