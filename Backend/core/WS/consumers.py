@@ -2,6 +2,8 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from api.models import Playground
 from django.contrib.auth.models import User
+import datetime, pytz
+
 
 # from django.shortcuts import get_or_create
 
@@ -150,6 +152,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if data["command"] == "join":
             await self.channel_layer.group_add(data["groupname"], self.channel_name)
         elif data["command"] == "send":
+            timestamp = datetime.datetime.now(pytz.timezone("Asia/Kolkata")).isoformat()
             await self.channel_layer.group_send(
                 data["groupname"],
                 {
@@ -157,6 +160,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     "message": data["message"],
                     "token": data["token"],
                     "username": data["user_name"],
+                    "timestamp": timestamp,
                 },
             )
 
@@ -169,5 +173,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "message": event["message"],
                 "token": event["token"],
                 "username": event["username"],
+                "timestamp": event["timestamp"],
             }
         )
